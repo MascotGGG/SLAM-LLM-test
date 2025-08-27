@@ -7,6 +7,7 @@ export TOKENIZERS_PARALLELISM=false
 export LD_LIBRARY_PATH=/home/v-wenxichen/miniconda3/envs/slam/lib:$LD_LIBRARY_PATH
 
 code_dir=examples/s2s
+deepspeed_config=examples/asr_librispeech/conf/ds_config.json
 num_gpus_per_node=$(( $(echo ${CUDA_VISIBLE_DEVICES} | tr -cd ',' | wc -c) + 1 ))
 num_nodes=1
 num_gpus=$(( num_gpus_per_node * num_nodes ))
@@ -123,6 +124,10 @@ hydra.run.dir=$output_dir \
 ++train_config.use_fp16=$use_fp16 \
 ++train_config.task_type=$task_type \
 ++train_config.use_peft=$use_peft \
+++train_config.enable_ddp=true \
+++train_config.enable_fsdp=false \
+++train_config.enable_deepspeed=true \
+++deepspeed_config=$deepspeed_config \
 ++metric=acc \
 ++log_config.use_wandb=$use_wandb \
 ++log_config.wandb_entity_name=$wandb_entity_name \
@@ -149,15 +154,12 @@ if [[ $CUDA_VISIBLE_DEVICES != *","* ]]; then
             $hydra_args
     fi
 else
-    torchrun \
-        --nnodes $num_nodes \
-        --nproc_per_node $num_gpus_per_node \
-        --master_port=29503 \
-        $code_dir/finetune_s2s.py \
+    deepspeed \
+        --num_nodes $num_nodes \
+        --num_gpus $num_gpus_per_node \
+        $code_dir/deepspeed_finetune_s2s.py \
         --config-path "conf" \
         --config-name "prompt.yaml" \
-        ++train_config.enable_ddp=true \
-        ++train_config.enable_fsdp=false \
         $hydra_args
 fi
 
